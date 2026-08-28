@@ -143,7 +143,7 @@ def now_iso():
 
 def pretty_date(value):
     if not value:
-        return "â"
+        return "\u2014"
 
     try:
         dt = datetime.fromisoformat(value)
@@ -272,7 +272,7 @@ async def verify_customer_access(update, context):
         ] = False
 
         message = (
-            "ð CUSTOMER ACCESS ONLY\n\n"
+            "\U0001f512 CUSTOMER ACCESS ONLY\n\n"
             "This postcode service is only available "
             "to customers who are members of one of "
             "our customer Telegram groups.\n\n"
@@ -315,13 +315,13 @@ def existing_customer_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "âï¸ Change Postcode",
+                    "\u270f\ufe0f Change Postcode",
                     callback_data="customer_change_postcode"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "ð Remove My Postcode",
+                    "\U0001f5d1 Remove My Postcode",
                     callback_data="customer_remove_postcode"
                 )
             ],
@@ -334,11 +334,11 @@ def confirm_remove_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "â Yes, Remove It",
+                    "\u2705 Yes, Remove It",
                     callback_data="customer_confirm_remove"
                 ),
                 InlineKeyboardButton(
-                    "â Cancel",
+                    "\u274c Cancel",
                     callback_data="customer_cancel_remove"
                 ),
             ]
@@ -351,7 +351,7 @@ def cancel_change_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "â Cancel Change",
+                    "\u274c Cancel Change",
                     callback_data="customer_cancel_change"
                 )
             ]
@@ -368,45 +368,45 @@ def admin_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "ð Postcode Counts",
+                    "\U0001f4ca Postcode Counts",
                     callback_data="admin_counts"
                 ),
                 InlineKeyboardButton(
-                    "ð¥ Customer Summary",
+                    "\U0001f465 Customer Summary",
                     callback_data="admin_total"
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    "ð¥ Busiest Areas",
+                    "\U0001f525 Busiest Areas",
                     callback_data="admin_busiest"
                 ),
                 InlineKeyboardButton(
-                    "ðº Collection Planning",
+                    "\U0001f5fa Collection Planning",
                     callback_data="admin_plan"
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    "ð Collection Rounds",
+                    "\U0001f69a Collection Rounds",
                     callback_data="rounds_menu"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "ð Export CSV",
+                    "\U0001f4c4 Export CSV",
                     callback_data="admin_export"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "ð Refresh Customer Access",
+                    "\U0001f504 Refresh Customer Access",
                     callback_data="admin_refresh_access"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "â»ï¸ Refresh Dashboard",
+                    "\u267b\ufe0f Refresh Dashboard",
                     callback_data="admin_menu"
                 )
             ],
@@ -419,7 +419,7 @@ def back_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "â¬ï¸ Back to Admin Menu",
+                    "\u2b05\ufe0f Back to Admin Menu",
                     callback_data="admin_menu"
                 )
             ]
@@ -474,20 +474,20 @@ def make_counts_text():
 
     if not rows:
         return (
-            "ð POSTCODE COUNTS\n\n"
+            "\U0001f4ca POSTCODE COUNTS\n\n"
             "No active postcode submissions yet."
         )
 
     lines = [
-        "ð ACTIVE POSTCODE COUNTS",
+        "\U0001f4ca ACTIVE POSTCODE COUNTS",
         "",
-        f"ð¥ Active customers: {active}",
+        f"\U0001f465 Active customers: {active}",
         "",
     ]
 
     for row in rows:
         lines.append(
-            f"ð {row['postcode_sector']} â "
+            f"\U0001f4cd {row['postcode_sector']} \u2014 "
             f"{row['customer_count']}"
         )
 
@@ -498,10 +498,10 @@ def make_customer_summary():
     rows, active, inactive, total = get_counts()
 
     return (
-        "ð¥ CUSTOMER SUMMARY\n\n"
-        f"â Active customers: {active}\n"
-        f"â Inactive customers: {inactive}\n"
-        f"ð¥ Total stored customers: {total}\n\n"
+        "\U0001f465 CUSTOMER SUMMARY\n\n"
+        f"\u2705 Active customers: {active}\n"
+        f"\u26d4 Inactive customers: {inactive}\n"
+        f"\U0001f465 Total stored customers: {total}\n\n"
         "Inactive customers are excluded from "
         "postcode counts and collection planning."
     )
@@ -512,14 +512,14 @@ def make_busiest_text():
 
     if not rows:
         return (
-            "ð¥ BUSIEST AREAS\n\n"
+            "\U0001f525 BUSIEST AREAS\n\n"
             "No active postcode areas yet."
         )
 
     lines = [
-        "ð¥ BUSIEST AREAS",
+        "\U0001f525 BUSIEST AREAS",
         "",
-        f"ð¥ Active customers: {active}",
+        f"\U0001f465 Active customers: {active}",
         "",
         "Top postcode sectors:",
         "",
@@ -531,7 +531,7 @@ def make_busiest_text():
 
         lines.append(
             f"{number}. {row['postcode_sector']} "
-            f"â {count} {word}"
+            f"\u2014 {count} {word}"
         )
 
     return "\n".join(lines)
@@ -542,7 +542,7 @@ def make_collection_plan_text():
 
     if not rows:
         return (
-            "ðº COLLECTION PLANNING\n\n"
+            "\U0001f5fa COLLECTION PLANNING\n\n"
             "No active postcode areas yet."
         )
 
@@ -573,9 +573,9 @@ def make_collection_plan_text():
     )
 
     lines = [
-        "ðº COLLECTION PLANNING",
+        "\U0001f5fa COLLECTION PLANNING",
         "",
-        f"ð¥ Active customers: {active}",
+        f"\U0001f465 Active customers: {active}",
         "",
         "Nearby postcode sectors are grouped "
         "by postcode district.",
@@ -591,7 +591,7 @@ def make_collection_plan_text():
         )
 
         lines.append(
-            f"ð {district} â "
+            f"\U0001f4cc {district} \u2014 "
             f"{district_total} {word}"
         )
 
@@ -605,7 +605,7 @@ def make_collection_plan_text():
 
         for sector, count in sectors:
             lines.append(
-                f"   â¢ {sector} â {count}"
+                f"   \u2022 {sector} \u2014 {count}"
             )
 
         lines.append("")
@@ -861,7 +861,7 @@ def make_district_details(district):
 
     if not customers:
         return (
-            f"ð {district} COLLECTION AREA\n\n"
+            f"\U0001f69a {district} COLLECTION AREA\n\n"
             "No active customers in this district."
         )
 
@@ -876,9 +876,9 @@ def make_district_details(district):
         ).append(customer)
 
     lines = [
-        f"ð {district} COLLECTION AREA",
+        f"\U0001f69a {district} COLLECTION AREA",
         "",
-        f"ð¥ Active customers: {len(customers)}",
+        f"\U0001f465 Active customers: {len(customers)}",
         "",
     ]
 
@@ -886,12 +886,12 @@ def make_district_details(district):
         members = grouped[sector]
 
         lines.append(
-            f"ð {sector} â {len(members)}"
+            f"\U0001f4cd {sector} \u2014 {len(members)}"
         )
 
         for member in members:
             lines.append(
-                f"   â¢ {round_customer_name(member)}"
+                f"   \u2022 {round_customer_name(member)}"
             )
 
         lines.append("")
@@ -900,7 +900,7 @@ def make_district_details(district):
 
     if active_round:
         lines.append(
-            f"ð¡ Planned round already exists: "
+            f"\U0001f7e1 Planned round already exists: "
             f"Round #{active_round['id']}"
         )
 
@@ -911,28 +911,28 @@ def make_round_details(round_id):
     round_row = get_round(round_id)
 
     if not round_row:
-        return "â Collection round not found."
+        return "\u274c Collection round not found."
 
     members = get_round_members(round_id)
 
     status_text = (
-        "ð¡ PLANNED"
+        "\U0001f7e1 PLANNED"
         if round_row["status"] == "planned"
-        else "â COMPLETED"
+        else "\u2705 COMPLETED"
     )
 
     lines = [
-        f"ð COLLECTION ROUND #{round_row['id']}",
+        f"\U0001f69a COLLECTION ROUND #{round_row['id']}",
         "",
-        f"ð District: {round_row['district']}",
-        f"ð Status: {status_text}",
-        f"ð¥ Customers: {round_row['customer_count']}",
-        f"ð Planned: {pretty_date(round_row['created_at'])}",
+        f"\U0001f4cc District: {round_row['district']}",
+        f"\U0001f4cb Status: {status_text}",
+        f"\U0001f465 Customers: {round_row['customer_count']}",
+        f"\U0001f5d3 Planned: {pretty_date(round_row['created_at'])}",
     ]
 
     if round_row["completed_at"]:
         lines.append(
-            f"â Completed: "
+            f"\u2705 Completed: "
             f"{pretty_date(round_row['completed_at'])}"
         )
 
@@ -946,7 +946,7 @@ def make_round_details(round_id):
 
     for member in members:
         lines.append(
-            f"ð {member['postcode_sector']} â "
+            f"\U0001f4cd {member['postcode_sector']} \u2014 "
             f"{round_customer_name(member)}"
         )
 
@@ -962,23 +962,23 @@ def rounds_menu_keyboard():
         [
             [
                 InlineKeyboardButton(
-                    "â Plan New Round",
+                    "\u2795 Plan New Round",
                     callback_data="rounds_choose_district"
                 )
             ],
             [
                 InlineKeyboardButton(
-                    "ð¡ Planned Rounds",
+                    "\U0001f7e1 Planned Rounds",
                     callback_data="rounds_active"
                 ),
                 InlineKeyboardButton(
-                    "ð Round History",
+                    "\U0001f4da Round History",
                     callback_data="rounds_history"
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    "â¬ï¸ Back to Admin Menu",
+                    "\u2b05\ufe0f Back to Admin Menu",
                     callback_data="admin_menu"
                 )
             ],
@@ -995,7 +995,7 @@ def districts_keyboard():
         rows.append(
             [
                 InlineKeyboardButton(
-                    f"ð {district} â {count}",
+                    f"\U0001f4cc {district} \u2014 {count}",
                     callback_data=f"round_district:{district}"
                 )
             ]
@@ -1004,7 +1004,7 @@ def districts_keyboard():
     rows.append(
         [
             InlineKeyboardButton(
-                "â¬ï¸ Back",
+                "\u2b05\ufe0f Back",
                 callback_data="rounds_menu"
             )
         ]
@@ -1022,7 +1022,7 @@ def district_actions_keyboard(district):
         rows.append(
             [
                 InlineKeyboardButton(
-                    f"ð¡ Open Round #{active_round['id']}",
+                    f"\U0001f7e1 Open Round #{active_round['id']}",
                     callback_data=f"round_view:{active_round['id']}"
                 )
             ]
@@ -1031,7 +1031,7 @@ def district_actions_keyboard(district):
         rows.append(
             [
                 InlineKeyboardButton(
-                    "â Plan This Round",
+                    "\u2705 Plan This Round",
                     callback_data=f"round_create:{district}"
                 )
             ]
@@ -1040,7 +1040,7 @@ def district_actions_keyboard(district):
     rows.append(
         [
             InlineKeyboardButton(
-                "â¬ï¸ Choose Another Area",
+                "\u2b05\ufe0f Choose Another Area",
                 callback_data="rounds_choose_district"
             )
         ]
@@ -1056,7 +1056,7 @@ def round_view_keyboard(round_id, status):
         rows.append(
             [
                 InlineKeyboardButton(
-                    "â Mark Round Completed",
+                    "\u2705 Mark Round Completed",
                     callback_data=f"round_complete_confirm:{round_id}"
                 )
             ]
@@ -1065,7 +1065,7 @@ def round_view_keyboard(round_id, status):
     rows.append(
         [
             InlineKeyboardButton(
-                "â¬ï¸ Collection Rounds",
+                "\u2b05\ufe0f Collection Rounds",
                 callback_data="rounds_menu"
             )
         ]
@@ -1079,11 +1079,11 @@ def round_complete_confirm_keyboard(round_id):
         [
             [
                 InlineKeyboardButton(
-                    "â Yes, Complete Round",
+                    "\u2705 Yes, Complete Round",
                     callback_data=f"round_complete:{round_id}"
                 ),
                 InlineKeyboardButton(
-                    "â Cancel",
+                    "\u274c Cancel",
                     callback_data=f"round_view:{round_id}"
                 ),
             ]
@@ -1098,15 +1098,15 @@ def history_keyboard():
 
     for row in rounds:
         icon = (
-            "ð¡"
+            "\U0001f7e1"
             if row["status"] == "planned"
-            else "â"
+            else "\u2705"
         )
 
         rows.append(
             [
                 InlineKeyboardButton(
-                    f"{icon} #{row['id']} {row['district']} â "
+                    f"{icon} #{row['id']} {row['district']} \u2014 "
                     f"{row['customer_count']}",
                     callback_data=f"round_view:{row['id']}"
                 )
@@ -1116,7 +1116,7 @@ def history_keyboard():
     rows.append(
         [
             InlineKeyboardButton(
-                "â¬ï¸ Back",
+                "\u2b05\ufe0f Back",
                 callback_data="rounds_menu"
             )
         ]
@@ -1146,7 +1146,7 @@ def planned_rounds_keyboard():
         rows.append(
             [
                 InlineKeyboardButton(
-                    f"ð¡ #{row['id']} {row['district']} â "
+                    f"\U0001f7e1 #{row['id']} {row['district']} \u2014 "
                     f"{row['customer_count']} customers",
                     callback_data=f"round_view:{row['id']}"
                 )
@@ -1156,7 +1156,7 @@ def planned_rounds_keyboard():
     rows.append(
         [
             InlineKeyboardButton(
-                "â¬ï¸ Back",
+                "\u2b05\ufe0f Back",
                 callback_data="rounds_menu"
             )
         ]
@@ -1177,7 +1177,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_admin(user.id):
         text = (
-            "ð POSTCODE COLLECTION BOT\n\n"
+            "\U0001f4cd POSTCODE COLLECTION BOT\n\n"
             "Customers simply send their postcode "
             "and the bot stores only their postcode sector.\n\n"
             "Use the Admin Dashboard below to manage "
@@ -1188,7 +1188,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 [
                     InlineKeyboardButton(
-                        "ð Admin Dashboard",
+                        "\U0001f510 Admin Dashboard",
                         callback_data="admin_menu"
                     )
                 ]
@@ -1216,8 +1216,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if existing:
         await update.message.reply_text(
-            "â YOU'RE ALREADY REGISTERED\n\n"
-            f"ð Your postcode area:\n"
+            "\u2705 YOU'RE ALREADY REGISTERED\n\n"
+            f"\U0001f4cd Your postcode area:\n"
             f"{existing['postcode_sector']}\n\n"
             "Only one postcode can be registered "
             "to each Telegram account.\n\n"
@@ -1229,17 +1229,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "ð PLEASE SEND YOUR POSTCODE\n\n"
+        "\U0001f4cd PLEASE SEND YOUR POSTCODE\n\n"
         "You can send either your full postcode "
         "or just the postcode sector.\n\n"
         "Examples:\n"
         "BD12 7\n"
         "BD7 4\n"
         "BD12 7AB\n\n"
-        "ð For privacy, only the postcode sector "
+        "\U0001f512 For privacy, only the postcode sector "
         "is stored.\n\n"
         "For example:\n"
-        "BD12 7AB â BD12 7"
+        "BD12 7AB \u2192 BD12 7"
     )
 
 
@@ -1251,7 +1251,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_admin(user.id):
         await update.message.reply_text(
-            "ð ADMIN HELP\n\n"
+            "\U0001f510 ADMIN HELP\n\n"
             "/admin - Open admin dashboard\n"
             "/groupid - Show the current group's ID\n"
             "/counts - Active postcode counts\n"
@@ -1272,7 +1272,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "ð POSTCODE HELP\n\n"
+        "\U0001f4cd POSTCODE HELP\n\n"
         "Simply send your postcode as a normal message.\n\n"
         "Examples:\n"
         "BD12 7\n"
@@ -1301,7 +1301,7 @@ async def group_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if chat.type == "private":
         await update.message.reply_text(
-            "â¹ï¸ To get a customer Group ID:\n\n"
+            "\u2139\ufe0f To get a customer Group ID:\n\n"
             "1. Add this bot to the customer group.\n"
             "2. Make the bot an admin.\n"
             "3. Send /groupid inside that group.\n\n"
@@ -1310,7 +1310,7 @@ async def group_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "ð GROUP ID\n\n"
+        "\U0001f194 GROUP ID\n\n"
         f"`{chat.id}`\n\n"
         "Add this number to your Railway "
         "ALLOWED_GROUP_IDS variable.",
@@ -1350,7 +1350,7 @@ async def handle_postcode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not sector:
         await update.message.reply_text(
-            "â I couldn't recognise that postcode.\n\n"
+            "\u274c I couldn't recognise that postcode.\n\n"
             "Please try again.\n\n"
             "Examples:\n"
             "BD12 7\n"
@@ -1370,8 +1370,8 @@ async def handle_postcode(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if existing and not changing:
         await update.message.reply_text(
-            "â You already have a postcode registered.\n\n"
-            f"ð Current area:\n"
+            "\u2705 You already have a postcode registered.\n\n"
+            f"\U0001f4cd Current area:\n"
             f"{existing['postcode_sector']}\n\n"
             "To prevent duplicate or accidental entries, "
             "you need to press Change Postcode first.",
@@ -1395,7 +1395,7 @@ async def handle_postcode(update: Update, context: ContextTypes.DEFAULT_TYPE):
             conn.close()
 
             await update.message.reply_text(
-                f"â Your postcode is already {sector}.",
+                f"\u2705 Your postcode is already {sector}.",
                 reply_markup=existing_customer_keyboard(),
             )
 
@@ -1429,8 +1429,8 @@ async def handle_postcode(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ] = False
 
         await update.message.reply_text(
-            "â POSTCODE UPDATED\n\n"
-            f"{old_sector} â {sector}\n\n"
+            "\u2705 POSTCODE UPDATED\n\n"
+            f"{old_sector} \u2192 {sector}\n\n"
             "Your new collection area "
             "has been saved.",
             reply_markup=existing_customer_keyboard(),
@@ -1466,8 +1466,8 @@ async def handle_postcode(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     await update.message.reply_text(
-        "â THANK YOU\n\n"
-        f"ð Your collection area:\n"
+        "\u2705 THANK YOU\n\n"
+        f"\U0001f4cd Your collection area:\n"
         f"{sector}\n\n"
         "Your postcode area has been registered.\n\n"
         "Only one postcode can be registered "
@@ -1505,7 +1505,7 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "customer_change_postcode":
         if not existing:
             await query.edit_message_text(
-                "ð Please send your postcode."
+                "\U0001f4cd Please send your postcode."
             )
             return
 
@@ -1514,7 +1514,7 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ] = True
 
         await query.edit_message_text(
-            "âï¸ CHANGE POSTCODE\n\n"
+            "\u270f\ufe0f CHANGE POSTCODE\n\n"
             f"Current postcode area:\n"
             f"{existing['postcode_sector']}\n\n"
             "Please send your new postcode now.\n\n"
@@ -1532,14 +1532,14 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if existing:
             await query.edit_message_text(
-                "â No changes made.\n\n"
-                f"ð Your postcode area:\n"
+                "\u2705 No changes made.\n\n"
+                f"\U0001f4cd Your postcode area:\n"
                 f"{existing['postcode_sector']}",
                 reply_markup=existing_customer_keyboard(),
             )
         else:
             await query.edit_message_text(
-                "â Change cancelled."
+                "\u2705 Change cancelled."
             )
 
         return
@@ -1547,13 +1547,13 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "customer_remove_postcode":
         if not existing:
             await query.edit_message_text(
-                "â¹ï¸ You do not currently have "
+                "\u2139\ufe0f You do not currently have "
                 "a postcode saved."
             )
             return
 
         await query.edit_message_text(
-            "ð REMOVE POSTCODE\n\n"
+            "\U0001f5d1 REMOVE POSTCODE\n\n"
             f"Are you sure you want to remove "
             f"{existing['postcode_sector']}?",
             reply_markup=confirm_remove_keyboard(),
@@ -1563,8 +1563,8 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "customer_cancel_remove":
         if existing:
             await query.edit_message_text(
-                "â No changes made.\n\n"
-                f"ð Your postcode area:\n"
+                "\u2705 No changes made.\n\n"
+                f"\U0001f4cd Your postcode area:\n"
                 f"{existing['postcode_sector']}",
                 reply_markup=existing_customer_keyboard(),
             )
@@ -1589,7 +1589,7 @@ async def customer_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ] = False
 
         await query.edit_message_text(
-            "â Your postcode area has been removed.\n\n"
+            "\u2705 Your postcode area has been removed.\n\n"
             "If you want to register again later, "
             "send /start."
         )
@@ -1617,13 +1617,13 @@ async def remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not existing:
         await update.message.reply_text(
-            "â¹ï¸ You do not currently "
+            "\u2139\ufe0f You do not currently "
             "have a postcode saved."
         )
         return
 
     await update.message.reply_text(
-        "ð REMOVE POSTCODE\n\n"
+        "\U0001f5d1 REMOVE POSTCODE\n\n"
         f"Are you sure you want to remove "
         f"{existing['postcode_sector']}?",
         reply_markup=confirm_remove_keyboard(),
@@ -1643,10 +1643,10 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows, active, inactive, total = get_counts()
 
     await update.message.reply_text(
-        "ð ADMIN DASHBOARD\n\n"
-        f"â Active customers: {active}\n"
-        f"â Inactive customers: {inactive}\n"
-        f"ð¥ Total stored: {total}\n\n"
+        "\U0001f510 ADMIN DASHBOARD\n\n"
+        f"\u2705 Active customers: {active}\n"
+        f"\u26d4 Inactive customers: {inactive}\n"
+        f"\U0001f465 Total stored: {total}\n\n"
         "Choose an option below:",
         reply_markup=admin_keyboard()
     )
@@ -1707,7 +1707,7 @@ async def rounds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.message.reply_text(
-        "ð COLLECTION ROUNDS\n\n"
+        "\U0001f69a COLLECTION ROUNDS\n\n"
         "Plan a collection area, save the customer "
         "list for that round, then mark it completed "
         "when the collection is finished.",
@@ -1766,8 +1766,8 @@ async def send_export(message):
             filename="active_postcode_counts.csv"
         ),
         caption=(
-            "ð Active postcode collection counts\n\n"
-            f"ð¥ Active customers: {active}"
+            "\U0001f4c4 Active postcode collection counts\n\n"
+            f"\U0001f465 Active customers: {active}"
         )
     )
 
@@ -1850,10 +1850,10 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         rows, active, inactive, total = get_counts()
 
         await query.edit_message_text(
-            "ð ADMIN DASHBOARD\n\n"
-            f"â Active customers: {active}\n"
-            f"â Inactive customers: {inactive}\n"
-            f"ð¥ Total stored: {total}\n\n"
+            "\U0001f510 ADMIN DASHBOARD\n\n"
+            f"\u2705 Active customers: {active}\n"
+            f"\u26d4 Inactive customers: {inactive}\n"
+            f"\U0001f465 Total stored: {total}\n\n"
             "Choose an option below:",
             reply_markup=admin_keyboard()
         )
@@ -1869,7 +1869,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text(
-                "ð The postcode list is long, "
+                "\U0001f4ca The postcode list is long, "
                 "so I've sent it below."
             )
 
@@ -1917,7 +1917,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text(
-                "ðº The collection plan is long, "
+                "\U0001f5fa The collection plan is long, "
                 "so I've sent it below."
             )
 
@@ -1949,7 +1949,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "admin_refresh_access":
         await query.edit_message_text(
-            "ð CHECKING CUSTOMER ACCESS...\n\n"
+            "\U0001f504 CHECKING CUSTOMER ACCESS...\n\n"
             "I'm checking registered customers "
             "against your approved Telegram groups.\n\n"
             "Please wait."
@@ -1962,9 +1962,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await query.edit_message_text(
-            "â ACCESS CHECK COMPLETE\n\n"
-            f"â Active customers: {active}\n"
-            f"â Inactive customers: {inactive}\n\n"
+            "\u2705 ACCESS CHECK COMPLETE\n\n"
+            f"\u2705 Active customers: {active}\n"
+            f"\u26d4 Inactive customers: {inactive}\n\n"
             "Inactive customers will no longer "
             "be included in collection counts.",
             reply_markup=back_keyboard()
@@ -1993,7 +1993,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "rounds_menu":
         await query.edit_message_text(
-            "ð COLLECTION ROUNDS\n\n"
+            "\U0001f69a COLLECTION ROUNDS\n\n"
             "Plan a new round, view planned rounds "
             "or look back at previous collection history.",
             reply_markup=rounds_menu_keyboard()
@@ -2005,7 +2005,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not districts:
             await query.edit_message_text(
-                "ð PLAN NEW ROUND\n\n"
+                "\U0001f69a PLAN NEW ROUND\n\n"
                 "There are currently no active "
                 "postcode districts to collect from.",
                 reply_markup=rounds_menu_keyboard()
@@ -2013,7 +2013,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await query.edit_message_text(
-            "ð PLAN NEW ROUND\n\n"
+            "\U0001f69a PLAN NEW ROUND\n\n"
             "Choose the postcode district you want "
             "to collect from.\n\n"
             "The number beside each area is the "
@@ -2038,7 +2038,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text(
-                f"ð {district} has a long customer list. "
+                f"\U0001f69a {district} has a long customer list. "
                 "I've sent the details below."
             )
 
@@ -2070,7 +2070,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not round_id:
             await query.edit_message_text(
-                f"â No active customers are currently "
+                f"\u274c No active customers are currently "
                 f"registered in {district}.",
                 reply_markup=rounds_menu_keyboard()
             )
@@ -2086,11 +2086,11 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if created:
             heading = (
-                "â COLLECTION ROUND PLANNED\n\n"
+                "\u2705 COLLECTION ROUND PLANNED\n\n"
             )
         else:
             heading = (
-                "â¹ï¸ A planned round already exists "
+                "\u2139\ufe0f A planned round already exists "
                 "for this district.\n\n"
             )
 
@@ -2139,7 +2139,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not round_row:
             await query.edit_message_text(
-                "â That collection round "
+                "\u274c That collection round "
                 "could not be found.",
                 reply_markup=rounds_menu_keyboard()
             )
@@ -2159,7 +2159,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text(
-                f"ð Collection Round #{round_id}\n\n"
+                f"\U0001f69a Collection Round #{round_id}\n\n"
                 "The customer list is long, so "
                 "I've sent it below."
             )
@@ -2196,16 +2196,16 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not round_row:
             await query.edit_message_text(
-                "â Round not found.",
+                "\u274c Round not found.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
 
         await query.edit_message_text(
-            "â COMPLETE COLLECTION ROUND?\n\n"
+            "\u2705 COMPLETE COLLECTION ROUND?\n\n"
             f"Round #{round_id}\n"
-            f"ð {round_row['district']}\n"
-            f"ð¥ {round_row['customer_count']} customers\n\n"
+            f"\U0001f4cc {round_row['district']}\n"
+            f"\U0001f465 {round_row['customer_count']} customers\n\n"
             "This will move the round into "
             "your completed history.",
             reply_markup=round_complete_confirm_keyboard(
@@ -2225,7 +2225,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not round_row:
             await query.edit_message_text(
-                "â Round not found.",
+                "\u274c Round not found.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
@@ -2240,11 +2240,11 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await query.edit_message_text(
-            "â COLLECTION ROUND COMPLETED\n\n"
+            "\u2705 COLLECTION ROUND COMPLETED\n\n"
             f"Round #{round_id}\n"
-            f"ð {round_row['district']}\n"
-            f"ð¥ {round_row['customer_count']} customers\n"
-            f"â Completed: "
+            f"\U0001f4cc {round_row['district']}\n"
+            f"\U0001f465 {round_row['customer_count']} customers\n"
+            f"\u2705 Completed: "
             f"{pretty_date(round_row['completed_at'])}",
             reply_markup=round_view_keyboard(
                 round_id,
@@ -2260,7 +2260,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not history:
             await query.edit_message_text(
-                "ð ROUND HISTORY\n\n"
+                "\U0001f4da ROUND HISTORY\n\n"
                 "No collection rounds have been "
                 "created yet.",
                 reply_markup=rounds_menu_keyboard()
@@ -2268,10 +2268,10 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await query.edit_message_text(
-            "ð ROUND HISTORY\n\n"
+            "\U0001f4da ROUND HISTORY\n\n"
             "Showing your latest collection rounds.\n\n"
-            "ð¡ = Planned\n"
-            "â = Completed",
+            "\U0001f7e1 = Planned\n"
+            "\u2705 = Completed",
             reply_markup=history_keyboard()
         )
         return
@@ -2295,7 +2295,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not active_rounds:
             await query.edit_message_text(
-                "ð¡ PLANNED ROUNDS\n\n"
+                "\U0001f7e1 PLANNED ROUNDS\n\n"
                 "There are currently no planned "
                 "collection rounds.",
                 reply_markup=rounds_menu_keyboard()
@@ -2303,7 +2303,7 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         await query.edit_message_text(
-            "ð¡ PLANNED ROUNDS\n\n"
+            "\U0001f7e1 PLANNED ROUNDS\n\n"
             "Choose a round to view its customers "
             "or mark it completed.",
             reply_markup=planned_rounds_keyboard()
