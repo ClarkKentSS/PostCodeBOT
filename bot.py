@@ -122,12 +122,55 @@ def init_db():
             postcode_sector TEXT NOT NULL,
             first_name TEXT,
             username TEXT,
+            collection_status TEXT NOT NULL DEFAULT 'pending',
+            status_updated_at TEXT,
             FOREIGN KEY (round_id)
                 REFERENCES collection_rounds(id)
                 ON DELETE CASCADE
         )
         """
     )
+
+    member_columns = {
+        row["name"]
+        for row in conn.execute(
+            "PRAGMA table_info(collection_round_members)"
+        ).fetchall()
+    }
+
+    added_status_column = False
+
+    if "collection_status" not in member_columns:
+        conn.execute(
+            """
+            ALTER TABLE collection_round_members
+            ADD COLUMN collection_status TEXT NOT NULL DEFAULT 'pending'
+            """
+        )
+        added_status_column = True
+
+    if "status_updated_at" not in member_columns:
+        conn.execute(
+            """
+            ALTER TABLE collection_round_members
+            ADD COLUMN status_updated_at TEXT
+            """
+        )
+
+    # V4 had no individual status tracking. Existing members from
+    # completed V4 rounds are treated as collected during migration.
+    if added_status_column:
+        conn.execute(
+            """
+            UPDATE collection_round_members
+            SET collection_status = 'collected'
+            WHERE round_id IN (
+                SELECT id
+                FROM collection_rounds
+                WHERE status = 'completed'
+            )
+            """
+        )
 
     conn.commit()
     conn.close()
@@ -736,13 +779,101 @@ def get_round_members(round_id):
         WHERE round_id = ?
         ORDER BY
             postcode_sector ASC,
-            first_name ASC
+            first_name ASC,
+            id ASC
         """,
         (round_id,),
     ).fetchall()
 
     conn.close()
     return rows
+
+
+def get_round_member(member_id):
+    conn = db()
+
+    row = conn.execute(
+        """
+        SELECT
+            m.*,
+            r.status AS round_status,
+            r.district AS round_district
+        FROM collection_round_members AS m
+        JOIN collection_rounds AS r
+            ON r.id = m.round_id
+        WHERE m.id = ?
+        """,
+        (member_id,),
+    ).fetchone()
+
+    conn.close()
+    return row
+
+
+def get_round_status_counts(round_id):
+    conn = db()
+
+    row = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN collection_status = 'collected' THEN 1 ELSE 0 END) AS collected,
+            SUM(CASE WHEN collection_status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN collection_status = 'missed' THEN 1 ELSE 0 END) AS missed
+        FROM collection_round_members
+        WHERE round_id = ?
+        """,
+        (round_id,),
+    ).fetchone()
+
+    conn.close()
+
+    return {
+        "total": int(row["total"] or 0),
+        "collected": int(row["collected"] or 0),
+        "pending": int(row["pending"] or 0),
+        "missed": int(row["missed"] or 0),
+    }
+
+
+def set_round_member_status(member_id, status):
+    if status not in {
+        "pending",
+        "collected",
+        "missed",
+    }:
+        return False
+
+    member = get_round_member(member_id)
+
+    if not member:
+        return False
+
+    if member["round_status"] != "planned":
+        return False
+
+    conn = db()
+
+    cursor = conn.execute(
+        """
+        UPDATE collection_round_members
+        SET
+            collection_status = ?,
+            status_updated_at = ?
+        WHERE id = ?
+        """,
+        (
+            status,
+            now_iso(),
+            member_id,
+        )
+    )
+
+    conn.commit()
+    changed = cursor.rowcount > 0
+    conn.close()
+
+    return changed
 
 
 def create_round(district, admin_id):
@@ -787,9 +918,10 @@ def create_round(district, admin_id):
                 telegram_id,
                 postcode_sector,
                 first_name,
-                username
+                username,
+                collection_status
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, 'pending')
             """,
             (
                 round_id,
@@ -808,6 +940,23 @@ def create_round(district, admin_id):
 
 def complete_round(round_id):
     conn = db()
+    completed_time = now_iso()
+
+    conn.execute(
+        """
+        UPDATE collection_round_members
+        SET
+            collection_status = 'missed',
+            status_updated_at = ?
+        WHERE
+            round_id = ?
+            AND collection_status = 'pending'
+        """,
+        (
+            completed_time,
+            round_id,
+        )
+    )
 
     conn.execute(
         """
@@ -820,7 +969,7 @@ def complete_round(round_id):
             AND status = 'planned'
         """,
         (
-            now_iso(),
+            completed_time,
             round_id,
         )
     )
@@ -856,6 +1005,35 @@ def round_customer_name(member):
     return name
 
 
+def short_customer_name(member, limit=24):
+    name = round_customer_name(member)
+
+    if len(name) > limit:
+        return name[:limit - 1] + "..."
+
+    return name
+
+
+def member_status_icon(status):
+    if status == "collected":
+        return "\u2705"
+
+    if status == "missed":
+        return "\u274c"
+
+    return "\u23f3"
+
+
+def member_status_text(status):
+    if status == "collected":
+        return "\u2705 COLLECTED"
+
+    if status == "missed":
+        return "\u274c MISSED"
+
+    return "\u23f3 PENDING"
+
+
 def make_district_details(district):
     customers = get_district_customers(district)
 
@@ -869,11 +1047,7 @@ def make_district_details(district):
 
     for customer in customers:
         sector = customer["postcode_sector"]
-
-        grouped.setdefault(
-            sector,
-            []
-        ).append(customer)
+        grouped.setdefault(sector, []).append(customer)
 
     lines = [
         f"\U0001f69a {district} COLLECTION AREA",
@@ -914,6 +1088,7 @@ def make_round_details(round_id):
         return "\u274c Collection round not found."
 
     members = get_round_members(round_id)
+    counts = get_round_status_counts(round_id)
 
     status_text = (
         "\U0001f7e1 PLANNED"
@@ -925,30 +1100,63 @@ def make_round_details(round_id):
         f"\U0001f69a COLLECTION ROUND #{round_row['id']}",
         "",
         f"\U0001f4cc District: {round_row['district']}",
-        f"\U0001f4cb Status: {status_text}",
-        f"\U0001f465 Customers: {round_row['customer_count']}",
+        f"\U0001f4cb Round status: {status_text}",
+        f"\U0001f465 Customers: {counts['total']}",
+        "",
+        f"\u2705 Collected: {counts['collected']}",
+        f"\u23f3 Pending: {counts['pending']}",
+        f"\u274c Missed: {counts['missed']}",
+        "",
         f"\U0001f5d3 Planned: {pretty_date(round_row['created_at'])}",
     ]
 
     if round_row["completed_at"]:
         lines.append(
-            f"\u2705 Completed: "
-            f"{pretty_date(round_row['completed_at'])}"
+            f"\u2705 Completed: {pretty_date(round_row['completed_at'])}"
         )
 
-    lines.extend(
-        [
-            "",
-            "Customers in this round:",
-            "",
-        ]
-    )
+    lines.extend([
+        "",
+        "Customer status:",
+        "",
+    ])
 
     for member in members:
         lines.append(
-            f"\U0001f4cd {member['postcode_sector']} \u2014 "
+            f"{member_status_icon(member['collection_status'])} "
+            f"{member['postcode_sector']} \u2014 "
             f"{round_customer_name(member)}"
         )
+
+    return "\n".join(lines)
+
+
+def make_round_member_details(member_id):
+    member = get_round_member(member_id)
+
+    if not member:
+        return "\u274c Customer could not be found."
+
+    lines = [
+        "\U0001f464 CUSTOMER COLLECTION STATUS",
+        "",
+        f"\U0001f4cd Postcode: {member['postcode_sector']}",
+        f"\U0001f464 Customer: {round_customer_name(member)}",
+        f"\U0001f69a Round: #{member['round_id']} ({member['round_district']})",
+        "",
+        f"Status: {member_status_text(member['collection_status'])}",
+    ]
+
+    if member["status_updated_at"]:
+        lines.append(
+            f"\U0001f552 Last updated: {pretty_date(member['status_updated_at'])}"
+        )
+
+    if member["round_status"] == "completed":
+        lines.extend([
+            "",
+            "\U0001f512 This round is completed, so customer statuses are locked."
+        ])
 
     return "\n".join(lines)
 
@@ -988,63 +1196,51 @@ def rounds_menu_keyboard():
 
 def districts_keyboard():
     districts = get_districts()
-
     rows = []
 
     for district, count in districts[:30]:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    f"\U0001f4cc {district} \u2014 {count}",
-                    callback_data=f"round_district:{district}"
-                )
-            ]
-        )
-
-    rows.append(
-        [
+        rows.append([
             InlineKeyboardButton(
-                "\u2b05\ufe0f Back",
-                callback_data="rounds_menu"
+                f"\U0001f4cc {district} \u2014 {count}",
+                callback_data=f"round_district:{district}"
             )
-        ]
-    )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Back",
+            callback_data="rounds_menu"
+        )
+    ])
 
     return InlineKeyboardMarkup(rows)
 
 
 def district_actions_keyboard(district):
     active_round = get_active_round(district)
-
     rows = []
 
     if active_round:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    f"\U0001f7e1 Open Round #{active_round['id']}",
-                    callback_data=f"round_view:{active_round['id']}"
-                )
-            ]
-        )
-    else:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    "\u2705 Plan This Round",
-                    callback_data=f"round_create:{district}"
-                )
-            ]
-        )
-
-    rows.append(
-        [
+        rows.append([
             InlineKeyboardButton(
-                "\u2b05\ufe0f Choose Another Area",
-                callback_data="rounds_choose_district"
+                f"\U0001f7e1 Open Round #{active_round['id']}",
+                callback_data=f"round_view:{active_round['id']}"
             )
-        ]
-    )
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                "\u2705 Plan This Round",
+                callback_data=f"round_create:{district}"
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Choose Another Area",
+            callback_data="rounds_choose_district"
+        )
+    ])
 
     return InlineKeyboardMarkup(rows)
 
@@ -1053,23 +1249,127 @@ def round_view_keyboard(round_id, status):
     rows = []
 
     if status == "planned":
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    "\u2705 Mark Round Completed",
-                    callback_data=f"round_complete_confirm:{round_id}"
-                )
-            ]
+        rows.append([
+            InlineKeyboardButton(
+                "\U0001f465 Update Customer Status",
+                callback_data=f"round_members:{round_id}:0"
+            )
+        ])
+        rows.append([
+            InlineKeyboardButton(
+                "\u2705 Mark Round Completed",
+                callback_data=f"round_complete_confirm:{round_id}"
+            )
+        ])
+    else:
+        rows.append([
+            InlineKeyboardButton(
+                "\U0001f465 View Customer Status",
+                callback_data=f"round_members:{round_id}:0"
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Collection Rounds",
+            callback_data="rounds_menu"
+        )
+    ])
+
+    return InlineKeyboardMarkup(rows)
+
+
+def round_members_keyboard(round_id, page=0, page_size=8):
+    members = get_round_members(round_id)
+    total = len(members)
+
+    if total == 0:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton(
+                "\u2b05\ufe0f Back to Round",
+                callback_data=f"round_view:{round_id}"
+            )]
+        ])
+
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    page = max(0, min(page, total_pages - 1))
+    start = page * page_size
+    end = start + page_size
+    rows = []
+
+    for member in members[start:end]:
+        rows.append([
+            InlineKeyboardButton(
+                f"{member_status_icon(member['collection_status'])} "
+                f"{member['postcode_sector']} \u2014 "
+                f"{short_customer_name(member)}",
+                callback_data=f"round_member:{member['id']}:{page}"
+            )
+        ])
+
+    nav = []
+
+    if page > 0:
+        nav.append(
+            InlineKeyboardButton(
+                "\u2b05\ufe0f Previous",
+                callback_data=f"round_members:{round_id}:{page - 1}"
+            )
         )
 
-    rows.append(
-        [
+    if page < total_pages - 1:
+        nav.append(
             InlineKeyboardButton(
-                "\u2b05\ufe0f Collection Rounds",
-                callback_data="rounds_menu"
+                "Next \u27a1\ufe0f",
+                callback_data=f"round_members:{round_id}:{page + 1}"
             )
-        ]
-    )
+        )
+
+    if nav:
+        rows.append(nav)
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Back to Round",
+            callback_data=f"round_view:{round_id}"
+        )
+    ])
+
+    return InlineKeyboardMarkup(rows)
+
+
+def round_member_keyboard(member_id, page, round_status):
+    member = get_round_member(member_id)
+
+    if not member:
+        return InlineKeyboardMarkup([])
+
+    rows = []
+
+    if round_status == "planned":
+        rows.append([
+            InlineKeyboardButton(
+                "\u2705 Collected",
+                callback_data=f"round_member_status:{member_id}:collected:{page}"
+            ),
+            InlineKeyboardButton(
+                "\u23f3 Pending",
+                callback_data=f"round_member_status:{member_id}:pending:{page}"
+            ),
+        ])
+        rows.append([
+            InlineKeyboardButton(
+                "\u274c Missed",
+                callback_data=f"round_member_status:{member_id}:missed:{page}"
+            )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Back to Customer List",
+            callback_data=f"round_members:{member['round_id']}:{page}"
+        )
+    ])
 
     return InlineKeyboardMarkup(rows)
 
@@ -1093,34 +1393,26 @@ def round_complete_confirm_keyboard(round_id):
 
 def history_keyboard():
     rounds = get_round_history(15)
-
     rows = []
 
     for row in rounds:
-        icon = (
-            "\U0001f7e1"
-            if row["status"] == "planned"
-            else "\u2705"
-        )
+        icon = "\U0001f7e1" if row["status"] == "planned" else "\u2705"
+        counts = get_round_status_counts(row["id"])
 
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    f"{icon} #{row['id']} {row['district']} \u2014 "
-                    f"{row['customer_count']}",
-                    callback_data=f"round_view:{row['id']}"
-                )
-            ]
-        )
-
-    rows.append(
-        [
+        rows.append([
             InlineKeyboardButton(
-                "\u2b05\ufe0f Back",
-                callback_data="rounds_menu"
+                f"{icon} #{row['id']} {row['district']} \u2014 "
+                f"\u2705 {counts['collected']}/{counts['total']}",
+                callback_data=f"round_view:{row['id']}"
             )
-        ]
-    )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Back",
+            callback_data="rounds_menu"
+        )
+    ])
 
     return InlineKeyboardMarkup(rows)
 
@@ -1139,28 +1431,27 @@ def planned_rounds_keyboard():
     ).fetchall()
 
     conn.close()
-
     rows = []
 
     for row in rounds:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    f"\U0001f7e1 #{row['id']} {row['district']} \u2014 "
-                    f"{row['customer_count']} customers",
-                    callback_data=f"round_view:{row['id']}"
-                )
-            ]
-        )
+        counts = get_round_status_counts(row["id"])
 
-    rows.append(
-        [
+        rows.append([
             InlineKeyboardButton(
-                "\u2b05\ufe0f Back",
-                callback_data="rounds_menu"
+                f"\U0001f7e1 #{row['id']} {row['district']} \u2014 "
+                f"\u2705 {counts['collected']} "
+                f"\u23f3 {counts['pending']} "
+                f"\u274c {counts['missed']}",
+                callback_data=f"round_view:{row['id']}"
             )
-        ]
-    )
+        ])
+
+    rows.append([
+        InlineKeyboardButton(
+            "\u2b05\ufe0f Back",
+            callback_data="rounds_menu"
+        )
+    ])
 
     return InlineKeyboardMarkup(rows)
 
@@ -1708,9 +1999,9 @@ async def rounds_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         "\U0001f69a COLLECTION ROUNDS\n\n"
-        "Plan a collection area, save the customer "
-        "list for that round, then mark it completed "
-        "when the collection is finished.",
+        "Plan a collection area, mark each customer as "
+        "Collected, Pending or Missed, then complete "
+        "the round when you are finished.",
         reply_markup=rounds_menu_keyboard()
     )
 
@@ -1994,8 +2285,9 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "rounds_menu":
         await query.edit_message_text(
             "\U0001f69a COLLECTION ROUNDS\n\n"
-            "Plan a new round, view planned rounds "
-            "or look back at previous collection history.",
+            "Plan a new round, update individual "
+            "customer collection statuses, view planned "
+            "rounds or look back at previous history.",
             reply_markup=rounds_menu_keyboard()
         )
         return
@@ -2024,17 +2316,12 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action.startswith("round_district:"):
         district = action.split(":", 1)[1]
-
-        text = make_district_details(
-            district
-        )
+        text = make_district_details(district)
 
         if len(text) <= 3900:
             await query.edit_message_text(
                 text,
-                reply_markup=district_actions_keyboard(
-                    district
-                )
+                reply_markup=district_actions_keyboard(district)
             )
         else:
             await query.edit_message_text(
@@ -2042,157 +2329,101 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "I've sent the details below."
             )
 
-            for start in range(
-                0,
-                len(text),
-                3900
-            ):
+            for start in range(0, len(text), 3900):
                 await query.message.reply_text(
                     text[start:start + 3900]
                 )
 
             await query.message.reply_text(
                 "Choose what to do next:",
-                reply_markup=district_actions_keyboard(
-                    district
-                )
+                reply_markup=district_actions_keyboard(district)
             )
 
         return
 
     if action.startswith("round_create:"):
         district = action.split(":", 1)[1]
-
-        round_id, created = create_round(
-            district,
-            user.id
-        )
+        round_id, created = create_round(district, user.id)
 
         if not round_id:
             await query.edit_message_text(
-                f"\u274c No active customers are currently "
-                f"registered in {district}.",
+                f"\u274c No active customers are currently registered in {district}.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
 
-        round_row = get_round(
-            round_id
-        )
+        round_row = get_round(round_id)
+        text = make_round_details(round_id)
 
-        text = make_round_details(
-            round_id
+        heading = (
+            "\u2705 COLLECTION ROUND PLANNED\n\n"
+            if created
+            else "\u2139\ufe0f A planned round already exists for this district.\n\n"
         )
-
-        if created:
-            heading = (
-                "\u2705 COLLECTION ROUND PLANNED\n\n"
-            )
-        else:
-            heading = (
-                "\u2139\ufe0f A planned round already exists "
-                "for this district.\n\n"
-            )
 
         full_text = heading + text
 
         if len(full_text) <= 3900:
             await query.edit_message_text(
                 full_text,
-                reply_markup=round_view_keyboard(
-                    round_id,
-                    round_row["status"]
-                )
+                reply_markup=round_view_keyboard(round_id, round_row["status"])
             )
         else:
-            await query.edit_message_text(
-                heading.strip()
-            )
+            await query.edit_message_text(heading.strip())
 
-            for start in range(
-                0,
-                len(text),
-                3900
-            ):
+            for start in range(0, len(text), 3900):
                 await query.message.reply_text(
                     text[start:start + 3900]
                 )
 
             await query.message.reply_text(
                 "Round options:",
-                reply_markup=round_view_keyboard(
-                    round_id,
-                    round_row["status"]
-                )
+                reply_markup=round_view_keyboard(round_id, round_row["status"])
             )
 
         return
 
     if action.startswith("round_view:"):
-        round_id = int(
-            action.split(":", 1)[1]
-        )
-
-        round_row = get_round(
-            round_id
-        )
+        round_id = int(action.split(":", 1)[1])
+        round_row = get_round(round_id)
 
         if not round_row:
             await query.edit_message_text(
-                "\u274c That collection round "
-                "could not be found.",
+                "\u274c That collection round could not be found.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
 
-        text = make_round_details(
-            round_id
-        )
+        text = make_round_details(round_id)
 
         if len(text) <= 3900:
             await query.edit_message_text(
                 text,
-                reply_markup=round_view_keyboard(
-                    round_id,
-                    round_row["status"]
-                )
+                reply_markup=round_view_keyboard(round_id, round_row["status"])
             )
         else:
             await query.edit_message_text(
                 f"\U0001f69a Collection Round #{round_id}\n\n"
-                "The customer list is long, so "
-                "I've sent it below."
+                "The customer list is long, so I've sent it below."
             )
 
-            for start in range(
-                0,
-                len(text),
-                3900
-            ):
+            for start in range(0, len(text), 3900):
                 await query.message.reply_text(
                     text[start:start + 3900]
                 )
 
             await query.message.reply_text(
                 "Round options:",
-                reply_markup=round_view_keyboard(
-                    round_id,
-                    round_row["status"]
-                )
+                reply_markup=round_view_keyboard(round_id, round_row["status"])
             )
 
         return
 
-    if action.startswith(
-        "round_complete_confirm:"
-    ):
-        round_id = int(
-            action.split(":", 1)[1]
-        )
-
-        round_row = get_round(
-            round_id
-        )
+    if action.startswith("round_members:"):
+        parts = action.split(":")
+        round_id = int(parts[1])
+        page = int(parts[2])
+        round_row = get_round(round_id)
 
         if not round_row:
             await query.edit_message_text(
@@ -2201,27 +2432,122 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+        counts = get_round_status_counts(round_id)
+        mode_text = (
+            "Tap a customer to update their status."
+            if round_row["status"] == "planned"
+            else "This completed round is read-only."
+        )
+
         await query.edit_message_text(
-            "\u2705 COMPLETE COLLECTION ROUND?\n\n"
-            f"Round #{round_id}\n"
+            f"\U0001f465 ROUND #{round_id} CUSTOMER STATUS\n\n"
             f"\U0001f4cc {round_row['district']}\n"
-            f"\U0001f465 {round_row['customer_count']} customers\n\n"
-            "This will move the round into "
-            "your completed history.",
-            reply_markup=round_complete_confirm_keyboard(
-                round_id
+            f"\u2705 Collected: {counts['collected']}\n"
+            f"\u23f3 Pending: {counts['pending']}\n"
+            f"\u274c Missed: {counts['missed']}\n\n"
+            f"{mode_text}",
+            reply_markup=round_members_keyboard(round_id, page)
+        )
+        return
+
+    if action.startswith("round_member_status:"):
+        parts = action.split(":")
+        member_id = int(parts[1])
+        new_status = parts[2]
+        page = int(parts[3])
+        member = get_round_member(member_id)
+
+        if not member:
+            await query.edit_message_text(
+                "\u274c Customer could not be found.",
+                reply_markup=rounds_menu_keyboard()
+            )
+            return
+
+        changed = set_round_member_status(member_id, new_status)
+        member = get_round_member(member_id)
+
+        if not changed and member["round_status"] != "planned":
+            await query.edit_message_text(
+                "\U0001f512 This round is completed, so customer statuses are locked.",
+                reply_markup=round_member_keyboard(
+                    member_id,
+                    page,
+                    member["round_status"]
+                )
+            )
+            return
+
+        await query.edit_message_text(
+            make_round_member_details(member_id),
+            reply_markup=round_member_keyboard(
+                member_id,
+                page,
+                member["round_status"]
             )
         )
         return
 
-    if action.startswith("round_complete:"):
-        round_id = int(
-            action.split(":", 1)[1]
-        )
+    if action.startswith("round_member:"):
+        parts = action.split(":")
+        member_id = int(parts[1])
+        page = int(parts[2])
+        member = get_round_member(member_id)
 
-        round_row = get_round(
-            round_id
+        if not member:
+            await query.edit_message_text(
+                "\u274c Customer could not be found.",
+                reply_markup=rounds_menu_keyboard()
+            )
+            return
+
+        await query.edit_message_text(
+            make_round_member_details(member_id),
+            reply_markup=round_member_keyboard(
+                member_id,
+                page,
+                member["round_status"]
+            )
         )
+        return
+
+    if action.startswith("round_complete_confirm:"):
+        round_id = int(action.split(":", 1)[1])
+        round_row = get_round(round_id)
+
+        if not round_row:
+            await query.edit_message_text(
+                "\u274c Round not found.",
+                reply_markup=rounds_menu_keyboard()
+            )
+            return
+
+        counts = get_round_status_counts(round_id)
+        warning = ""
+
+        if counts["pending"] > 0:
+            pending_word = "customer" if counts["pending"] == 1 else "customers"
+            warning = (
+                f"\n\n\u26a0\ufe0f {counts['pending']} {pending_word} still pending.\n"
+                "Completing the round will automatically mark all remaining "
+                "pending customers as missed."
+            )
+
+        await query.edit_message_text(
+            "\u2705 COMPLETE COLLECTION ROUND?\n\n"
+            f"Round #{round_id}\n"
+            f"\U0001f4cc {round_row['district']}\n\n"
+            f"\u2705 Collected: {counts['collected']}\n"
+            f"\u23f3 Pending: {counts['pending']}\n"
+            f"\u274c Missed: {counts['missed']}"
+            f"{warning}",
+            reply_markup=round_complete_confirm_keyboard(round_id)
+        )
+        return
+
+    if action.startswith("round_complete:"):
+        round_id = int(action.split(":", 1)[1])
+        round_row = get_round(round_id)
 
         if not round_row:
             await query.edit_message_text(
@@ -2231,38 +2557,30 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if round_row["status"] == "planned":
-            complete_round(
-                round_id
-            )
+            complete_round(round_id)
 
-        round_row = get_round(
-            round_id
-        )
+        round_row = get_round(round_id)
+        counts = get_round_status_counts(round_id)
 
         await query.edit_message_text(
             "\u2705 COLLECTION ROUND COMPLETED\n\n"
             f"Round #{round_id}\n"
-            f"\U0001f4cc {round_row['district']}\n"
-            f"\U0001f465 {round_row['customer_count']} customers\n"
-            f"\u2705 Completed: "
-            f"{pretty_date(round_row['completed_at'])}",
-            reply_markup=round_view_keyboard(
-                round_id,
-                round_row["status"]
-            )
+            f"\U0001f4cc {round_row['district']}\n\n"
+            f"\u2705 Collected: {counts['collected']}\n"
+            f"\u274c Missed: {counts['missed']}\n"
+            f"\U0001f465 Total: {counts['total']}\n\n"
+            f"\u2705 Completed: {pretty_date(round_row['completed_at'])}",
+            reply_markup=round_view_keyboard(round_id, round_row["status"])
         )
         return
 
     if action == "rounds_history":
-        history = get_round_history(
-            15
-        )
+        history = get_round_history(15)
 
         if not history:
             await query.edit_message_text(
                 "\U0001f4da ROUND HISTORY\n\n"
-                "No collection rounds have been "
-                "created yet.",
+                "No collection rounds have been created yet.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
@@ -2271,16 +2589,14 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "\U0001f4da ROUND HISTORY\n\n"
             "Showing your latest collection rounds.\n\n"
             "\U0001f7e1 = Planned\n"
-            "\u2705 = Completed",
+            "\u2705 = Completed\n\n"
+            "The number on each round shows how many customers were collected.",
             reply_markup=history_keyboard()
         )
         return
 
     if action == "rounds_active":
-        active_rounds = []
-
         conn = db()
-
         active_rounds = conn.execute(
             """
             SELECT *
@@ -2290,22 +2606,19 @@ async def rounds_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             LIMIT 20
             """
         ).fetchall()
-
         conn.close()
 
         if not active_rounds:
             await query.edit_message_text(
                 "\U0001f7e1 PLANNED ROUNDS\n\n"
-                "There are currently no planned "
-                "collection rounds.",
+                "There are currently no planned collection rounds.",
                 reply_markup=rounds_menu_keyboard()
             )
             return
 
         await query.edit_message_text(
             "\U0001f7e1 PLANNED ROUNDS\n\n"
-            "Choose a round to view its customers "
-            "or mark it completed.",
+            "Choose a round to update customer statuses or mark the round completed.",
             reply_markup=planned_rounds_keyboard()
         )
         return
